@@ -2,6 +2,7 @@
 // 색상 팔레트
 export const colors = {
   primary: '#6c63d9',
+  primaryDark: '#5a52c7', // primary보다 한톤 진한 색상
   secondary: '#f50057',
   success: '#4caf50',
   warning: '#ff9800',
@@ -16,8 +17,9 @@ export const colors = {
   black: '#000000',
   
   // 배경색
-  background: '#ffffff',
-  surface: '#fafafa',
+  background: '#f8f9ff', // 연한 블루 그레이
+  backgroundSecondary: '#f0f2ff', // 더 진한 블루 그레이
+  surface: '#ffffff',
   overlay: 'rgba(0, 0, 0, 0.2)',
   
   // 텍스트 색상
