@@ -1,28 +1,37 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useDispatch } from 'react-redux';
 
+import { useOrientation } from '@shared/hooks/useOrientation';
 import { publicAxiosInstance } from '@shared/services/apiClient';
 import type { LoginRequest } from '@shared/types';
 import { loginSuccess } from '@store/authSlice';
-import { loginStyles } from '@styles';
+import { createResponsiveLoginStyles, loginStyles } from '@styles';
+
+const { width } = Dimensions.get('window');
 
 type FormState = {
   userId: string;
   password: string;
   rememberMe: boolean;
+};
+
+type FormErrors = {
+  userId?: string;
+  password?: string;
 };
 
 export default function Login() {
@@ -40,6 +49,7 @@ export default function Login() {
     rememberMe: false,
   });
 
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
   // 저장된 로그인 ID 불러오기
@@ -54,24 +64,33 @@ export default function Login() {
     }
   };
 
+  // 에러 메시지 초기화
+  const clearErrors = () => {
+    setFormErrors({});
+  };
+
   // 유효성 검사 함수
   const validateForm = (): boolean => {
+    const errors: FormErrors = {};
+
     // 아이디 검증
     if (!formState.userId.trim()) {
-      Alert.alert('입력 오류', '아이디를 입력해주세요.');
-      return false;
+      errors.userId = '아이디를 입력해주세요.';
     }
 
     // 비밀번호 검증
     if (!formState.password) {
-      Alert.alert('입력 오류', '비밀번호를 입력해주세요.');
-      return false;
+      errors.password = '비밀번호를 입력해주세요.';
     }
 
-    return true;
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async () => {
+    // 에러 초기화
+    clearErrors();
+
     // 유효성 검사
     if (!validateForm()) {
       return;
@@ -82,11 +101,11 @@ export default function Login() {
     const requestData: LoginRequest = {
       loginId: formState.userId.trim(),
       password: formState.password,
-      adminLogin: false, // React Native는 일반 사용자용
     };
 
     try {
-      const response = await publicAxiosInstance.post('/auth/login', requestData);
+
+      const response = await publicAxiosInstance.post('/auth/user/login', requestData);
 
       if (response.data.success) {
         const userData = response.data.data;
@@ -100,11 +119,24 @@ export default function Login() {
           await AsyncStorage.removeItem('rememberedLoginId');
         }
 
-        // 로그인 성공 후 메인 페이지로 이동
-        router.replace('/(tabs)');
+        // 로그인 성공 Toast
+        Toast.show({
+          type: 'success',
+          text1: '로그인 성공!',
+          text2: '환영합니다 👋',
+          position: 'top',
+          visibilityTime: 2000
+        });
+
+        // 잠시 후 메인 페이지로 이동
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 2000);
+
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('로그인 실패:', error);
+
       // 에러 메시지는 axiosInstance에서 자동으로 처리됨
     } finally {
       setIsLoading(false);
@@ -116,7 +148,27 @@ export default function Login() {
       ...prev,
       [field]: value,
     }));
+
+    // 입력 시 해당 필드 에러 메시지 제거
+    if (field === 'userId' && formErrors.userId) {
+      setFormErrors(prev => ({ ...prev, userId: undefined }));
+    }
+    if (field === 'password' && formErrors.password) {
+      setFormErrors(prev => ({ ...prev, password: undefined }));
+    }
   };
+
+  // 현재 디바이스에 맞는 스타일 선택
+  const isTabletDevice = width >= 768; // 태블릿 기준 너비
+  
+  // 방향 감지
+  const { isLandscape } = useOrientation();
+  
+  // 반응형 스타일 생성 (useMemo로 최적화)
+  const styles = useMemo(() => 
+    createResponsiveLoginStyles(isTabletDevice, isLandscape), 
+    [isTabletDevice, isLandscape]
+  );
 
   return (
     <KeyboardAvoidingView
@@ -127,23 +179,26 @@ export default function Login() {
         contentContainerStyle={loginStyles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        <View style={loginStyles.card}>
+        <View style={styles.card}>
           {/* 로고 */}
-          <View style={loginStyles.logoContainer}>
+          <View style={styles.logoContainer}>
             <Image
               source={require('@assets/images/haircity-logo.png')}
-              style={loginStyles.logo}
+              style={styles.logo}
               resizeMode="contain"
             />
           </View>
 
           {/* 로그인 폼 */}
-          <View style={loginStyles.form}>
+          <View style={styles.form}>
             {/* 아이디 입력 */}
-            <View style={loginStyles.formGroup}>
-              <Text style={loginStyles.label}>아이디</Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>아이디</Text>
               <TextInput
-                style={loginStyles.input}
+                style={[
+                  styles.input,
+                  formErrors.userId && loginStyles.inputError
+                ]}
                 placeholder="아이디를 입력하세요"
                 value={formState.userId}
                 onChangeText={(value) => handleChange('userId', value)}
@@ -151,53 +206,63 @@ export default function Login() {
                 autoCorrect={false}
                 editable={!isLoading}
               />
+              {formErrors.userId && (
+                <Text style={styles.errorText}>{formErrors.userId}</Text>
+              )}
             </View>
 
             {/* 비밀번호 입력 */}
-            <View style={loginStyles.formGroup}>
-              <Text style={loginStyles.label}>비밀번호</Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>비밀번호</Text>
               <TextInput
-                style={loginStyles.input}
+                style={[
+                  styles.input,
+                  formErrors.password && loginStyles.inputError
+                ]}
                 placeholder="비밀번호를 입력하세요"
                 value={formState.password}
                 onChangeText={(value) => handleChange('password', value)}
                 secureTextEntry
                 editable={!isLoading}
               />
+              {formErrors.password && (
+                <Text style={styles.errorText}>{formErrors.password}</Text>
+              )}
             </View>
 
             {/* 아이디 기억하기 */}
-            <View style={loginStyles.rememberMeContainer}>
-              <TouchableOpacity
+            <View style={styles.rememberMeContainer}>
+              <Pressable
                 style={loginStyles.checkboxContainer}
                 onPress={() => handleChange('rememberMe', !formState.rememberMe)}
                 disabled={isLoading}
               >
                 <View style={[
-                  loginStyles.checkbox,
+                  styles.checkbox,
                   formState.rememberMe && loginStyles.checkboxChecked
                 ]}>
                   {formState.rememberMe && (
-                    <Text style={loginStyles.checkboxText}>✓</Text>
+                    <Text style={styles.checkboxText}>✓</Text>
                   )}
                 </View>
-                <Text style={loginStyles.rememberMeLabel}>아이디 기억하기</Text>
-              </TouchableOpacity>
+                <Text style={styles.rememberMeLabel}>아이디 기억하기</Text>
+              </Pressable>
             </View>
 
             {/* 로그인 버튼 */}
-            <TouchableOpacity
-              style={[
-                loginStyles.loginButton,
+            <Pressable
+              style={({ pressed }) => [
+                styles.loginButton,
+                pressed && styles.loginButtonPressed,
                 isLoading && loginStyles.loginButtonDisabled
               ]}
               onPress={handleSubmit}
               disabled={isLoading}
             >
-              <Text style={loginStyles.loginButtonText}>
+              <Text style={styles.loginButtonText}>
                 {isLoading ? '로그인 중...' : '로그인'}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
