@@ -17,6 +17,7 @@ config.resolver.alias = {
   '@utils': path.resolve(__dirname, 'shared/utils'),
   '@types': path.resolve(__dirname, 'shared/types'),
   '@services': path.resolve(__dirname, 'shared/services'),
+  '@styles': path.resolve(__dirname, 'shared/styles'),
 };
 
 module.exports = config;

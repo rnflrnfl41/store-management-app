@@ -15,7 +15,9 @@
       "@hooks/*": ["./hooks/*"],
       "@utils/*": ["./shared/utils/*"],
       "@types/*": ["./shared/types/*"],
-      "@services/*": ["./shared/services/*"]
+      "@services/*": ["./shared/services/*"],
+      "@styles/*": ["./shared/styles/*"],
+      "@styles": ["./shared/styles/index.ts"]
     }
   },
   "include": [
