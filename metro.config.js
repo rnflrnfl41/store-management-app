@@ -3,6 +3,11 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
+// 포트 설정
+config.server = {
+  port: 8282
+};
+
 // Alias 설정
 config.resolver.alias = {
   '@': path.resolve(__dirname),
