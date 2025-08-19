@@ -12,9 +12,9 @@ import {
   TextInput,
   View
 } from 'react-native';
-import Toast from 'react-native-toast-message';
 import { useDispatch } from 'react-redux';
 
+import { LoadingDots } from '@shared/components';
 import { useOrientation } from '@shared/hooks/useOrientation';
 import { publicAxiosInstance } from '@shared/services/apiClient';
 import type { LoginRequest } from '@shared/types';
@@ -107,37 +107,24 @@ export default function Login() {
 
       const response = await publicAxiosInstance.post('/auth/user/login', requestData);
 
-      if (response.data.success) {
-        const userData = response.data.data;
+      const userData = response.data;
 
-        dispatch(loginSuccess(userData));
+      dispatch(loginSuccess(userData));
 
-        // 아이디 기억하기 처리
-        if (formState.rememberMe) {
-          await AsyncStorage.setItem('rememberedLoginId', formState.userId.trim());
-        } else {
-          await AsyncStorage.removeItem('rememberedLoginId');
-        }
-
-        // 로그인 성공 Toast
-        Toast.show({
-          type: 'success',
-          text1: '로그인 성공!',
-          text2: '환영합니다 👋',
-          position: 'top',
-          visibilityTime: 2000
-        });
-
-        // 잠시 후 메인 페이지로 이동
-        setTimeout(() => {
-          router.replace('/(tabs)');
-        }, 2000);
-
+      // 아이디 기억하기 처리
+      if (formState.rememberMe) {
+        await AsyncStorage.setItem('rememberedLoginId', formState.userId.trim());
+      } else {
+        await AsyncStorage.removeItem('rememberedLoginId');
       }
+
+      //메인 페이지로 이동
+      router.replace('/(tabs)');
+
     } catch (error: any) {
       console.log('로그인 실패:', error);
 
-      // 에러 메시지는 axiosInstance에서 자동으로 처리됨
+      // 에러 메시지는 axiosInstance에서 자동으로 처리
     } finally {
       setIsLoading(false);
     }
@@ -160,13 +147,13 @@ export default function Login() {
 
   // 현재 디바이스에 맞는 스타일 선택
   const isTabletDevice = width >= 768; // 태블릿 기준 너비
-  
+
   // 방향 감지
   const { isLandscape } = useOrientation();
-  
+
   // 반응형 스타일 생성 (useMemo로 최적화)
-  const styles = useMemo(() => 
-    createResponsiveLoginStyles(isTabletDevice, isLandscape), 
+  const styles = useMemo(() =>
+    createResponsiveLoginStyles(isTabletDevice, isLandscape),
     [isTabletDevice, isLandscape]
   );
 
@@ -259,9 +246,16 @@ export default function Login() {
               onPress={handleSubmit}
               disabled={isLoading}
             >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? '로그인 중...' : '로그인'}
-              </Text>
+              {isLoading ? (
+                <LoadingDots
+                  size="medium"
+                  color="#ffffff"
+                />
+              ) : (
+                <Text style={styles.loginButtonText}>
+                  로그인
+                </Text>
+              )}
             </Pressable>
           </View>
         </View>
