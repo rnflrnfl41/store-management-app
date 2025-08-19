@@ -1,7 +1,6 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DEFAULT_TIMEOUT, STORAGE_KEYS } from "@shared/constants";
+import { DEFAULT_TIMEOUT } from "@shared/constants";
 import type { ApiErrorResponse } from "@shared/types";
-import { loginFailure, logout, updateAccessToken } from "@store/authSlice";
+import { loginFailure, logout } from "@store/authSlice";
 import { store } from "@store/index";
 import { startLoading, stopLoading } from "@store/loadingSlice";
 import { showError, showSuccess } from "@utils/alertUtils";
@@ -11,9 +10,7 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 import axios from "axios";
-import { useRouter } from "expo-router";
-
-const router = useRouter();
+import { tokenManager } from "./tokenManager";
 
 // refresh token 요청 중인지 확인하는 플래그
 let isRefreshing = false;
@@ -40,27 +37,25 @@ const processQueue = (error: any, token: string | null = null) => {
 // refresh token으로 새 access token 요청
 const refreshAccessToken = async (): Promise<string> => {
   try {
-    const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    const refreshToken = await tokenManager.getRefreshToken();
 
     if (!refreshToken) {
       throw new Error("Refresh token not found");
     }
 
-    const response = await axios.post(
-      "/auth/refresh-token",
-      { refreshToken },
-      {
-        baseURL: baseUrl,
-        timeout: DEFAULT_TIMEOUT,
-      }
+    // publicAxiosInstance 사용 (로딩, 에러 처리 등 자동화)
+    const response = await publicAxiosInstance.post(
+      "/auth/user/refresh-token",
+      { refreshToken }
     );
 
-    const newToken = response.data.data.accessToken;
+    // 인터셉터에서 이미 response.data.data로 변환됨
+    const { accessToken, refreshToken: newRefreshToken } = response.data;
 
-    // Redux에만 새 토큰 저장 (AsyncStorage 사용 안함)
-    store.dispatch(updateAccessToken(newToken));
+    // 새로운 토큰들을 Keychain에 저장
+    await tokenManager.saveTokensFromResponse(accessToken, newRefreshToken);
 
-    return newToken;
+    return accessToken;
   } catch (error: any) {
     // 서버에서 보낸 에러 메시지가 있는 경우 우선 처리
     const errorData = error.response?.data;
@@ -80,7 +75,7 @@ const refreshAccessToken = async (): Promise<string> => {
           );
           break;
         default:
-          // 네트워크 오류
+          // 네트워크 연결을 확인해주세요.");
           if (!error.response) {
             showError("네트워크 연결을 확인해주세요.");
           }
@@ -99,12 +94,10 @@ const clearUserInfo = async (
 ) => {
   store.dispatch(logout());
 
-  // AsyncStorage에서 refreshToken 삭제
-  await AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-
   showError(reason);
 
   // 로그인 화면으로 이동
+  const { router } = await import('expo-router');
   router.replace("/login");
 };
 
@@ -213,14 +206,31 @@ publicAxiosInstance.interceptors.response.use(
   }
 );
 
-// 요청 인터셉터 설정 (토큰 추가 + 로딩 시작)
+// 요청 인터셉터 설정 (refreshToken 정기 갱신 + 로딩 시작)
 axiosInstance.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     store.dispatch(startLoading());
 
-    const state = store.getState();
-    const token = state.auth.userInfo?.accessToken;
+    // 🔄 refreshToken 정기 갱신 체크 (3일 전에 갱신)
+    if (await tokenManager.shouldRefreshRefreshToken()) {
+      console.log('리프레시 토큰 만료 임박, 정기 갱신...');
+      try {
+        const refreshed = await tokenManager.refreshRefreshTokenOnly();
+        if (!refreshed) {
+          console.error('리프레시 토큰 갱신 실패');
+          // 갱신 실패 시 로그아웃 처리
+          await clearUserInfo();
+          return Promise.reject(new Error('리프레시 토큰 갱신 실패'));
+        }
+      } catch (error) {
+        console.error('리프레시 토큰 갱신 중 오류:', error);
+        await clearUserInfo();
+        return Promise.reject(error);
+      }
+    }
 
+    // accessToken은 그대로 사용 (갱신 안 함)
+    const token = await tokenManager.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
