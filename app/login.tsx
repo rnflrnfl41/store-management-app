@@ -17,6 +17,7 @@ import { useDispatch } from 'react-redux';
 import { LoadingDots } from '@shared/components';
 import { useOrientation } from '@shared/hooks/useOrientation';
 import { publicAxiosInstance } from '@shared/services/apiClient';
+import { tokenManager } from '@shared/services/tokenManager';
 import type { LoginRequest } from '@shared/types';
 import { loginSuccess } from '@store/authSlice';
 import { createResponsiveLoginStyles, loginStyles } from '@styles';
@@ -104,12 +105,16 @@ export default function Login() {
     };
 
     try {
-
       const response = await publicAxiosInstance.post('/auth/user/login', requestData);
-
-      const userData = response.data;
-
-      dispatch(loginSuccess(userData));
+      const responseData = response.data;
+      
+      // 토큰을 Keychain에 암호화해서 저장
+      await tokenManager.saveAccessToken(responseData.accessToken);
+      await tokenManager.saveRefreshToken(responseData.refreshToken);
+      
+      // userInfo에서 토큰을 제외한 정보만 Redux에 저장
+      const { accessToken, refreshToken, ...userInfo } = responseData;
+      dispatch(loginSuccess(userInfo));
 
       // 아이디 기억하기 처리
       if (formState.rememberMe) {
@@ -118,13 +123,11 @@ export default function Login() {
         await AsyncStorage.removeItem('rememberedLoginId');
       }
 
-      //메인 페이지로 이동
+      // 메인 페이지로 이동
       router.replace('/(tabs)');
-
     } catch (error: any) {
       console.log('로그인 실패:', error);
-
-      // 에러 메시지는 axiosInstance에서 자동으로 처리
+      // 에러 메시지는 axiosInstance에서 자동으로 처리됨
     } finally {
       setIsLoading(false);
     }
