@@ -8,10 +8,9 @@ export const selectUserId = (state: RootState) => state.auth.userInfo?.userId;
 export const selectLoginId = (state: RootState) => state.auth.userInfo?.loginId;
 export const selectStoreId = (state: RootState) => state.auth.userInfo?.storeId;
 export const selectUserName = (state: RootState) => state.auth.userInfo?.userName;
-export const selectAccessToken = (state: RootState) => state.auth.userInfo?.accessToken;
 
 // 파생된 상태 selectors
-export const selectIsAuthenticated = (state: RootState) => !!state.auth.userInfo;
+export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated;
 export const selectIsLoading = (state: RootState) => false; // 로딩 상태는 컴포넌트에서 관리
 
 // 복합 selectors
@@ -20,7 +19,5 @@ export const selectUserDisplayName = (state: RootState) => {
   return userInfo?.userName || userInfo?.loginId || '사용자';
 };
 
-export const selectHasValidToken = (state: RootState) => {
-  const token = state.auth.userInfo?.accessToken;
-  return !!token && token.length > 0;
-};
+// 토큰 유효성은 tokenManager에서 확인해야 함
+// 이 selector는 제거하고 필요시 직접 tokenManager.isTokenExpired() 사용
