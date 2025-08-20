@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import CryptoJS from 'crypto-js';
 import { jwtDecode } from 'jwt-decode';
 import * as Keychain from 'react-native-keychain';
 
@@ -26,22 +25,40 @@ class TokenManager {
     return process.env.EXPO_PUBLIC_TOKEN_SECRET_KEY || '8d990b708713f0ea2ee994ca8d22a5be9a6056e58535c8263af106692f82d5ff';
   }
 
-
-  // 간단한 암호화
-  private encryptToken(token: string): string {
+  // 간단한 암호화 (Expo 환경 최적화)
+  private async encryptToken(token: string): Promise<string> {
     try {
-      return CryptoJS.AES.encrypt(token, this.encryptionKey).toString();
+      // 간단한 문자열 암호화 (Expo 환경에서 안정적)
+      const key = this.encryptionKey.substring(0, 16); // 16자 키 사용
+      let encrypted = '';
+      
+      for (let i = 0; i < token.length; i++) {
+        const charCode = token.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+        encrypted += String.fromCharCode(charCode);
+      }
+      
+      // Base64로 인코딩하여 저장
+      return btoa(encrypted);
     } catch (error) {
       console.log('토큰 암호화 실패, 원본 저장:', error);
       return token; // 암호화 실패 시 원본 반환
     }
   }
 
-  // 간단한 복호화
-  private decryptToken(encryptedToken: string): string {
+  // 간단한 복호화 (Expo 환경 최적화)
+  private async decryptToken(encryptedToken: string): Promise<string> {
     try {
-      const bytes = CryptoJS.AES.decrypt(encryptedToken, this.encryptionKey);
-      return bytes.toString(CryptoJS.enc.Utf8);
+      // Base64 디코딩 후 XOR 복호화
+      const key = this.encryptionKey.substring(0, 16); // 16자 키 사용
+      const encrypted = atob(encryptedToken);
+      
+      let decrypted = '';
+      for (let i = 0; i < encrypted.length; i++) {
+        const charCode = encrypted.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+        decrypted += String.fromCharCode(charCode);
+      }
+      
+      return decrypted;
     } catch (error) {
       console.log('토큰 복호화 실패, 원본 반환:', error);
       return encryptedToken; // 복호화 실패 시 원본 반환
@@ -101,7 +118,7 @@ class TokenManager {
       }
 
       // AsyncStorage로 대체 (암호화하여 저장)
-      const encryptedToken = this.encryptToken(token);
+      const encryptedToken = await this.encryptToken(token);
       await AsyncStorage.setItem('accessToken', encryptedToken);
       console.log('액세스 토큰 저장 성공 (암호화된 AsyncStorage)');
     } catch (error) {
@@ -127,7 +144,7 @@ class TokenManager {
       const encryptedToken = await AsyncStorage.getItem('accessToken');
       if (!encryptedToken) return null;
       
-      const decryptedToken = this.decryptToken(encryptedToken);
+      const decryptedToken = await this.decryptToken(encryptedToken);
       return decryptedToken;
     } catch (error) {
       console.error('액세스 토큰 가져오기 실패:', error);
@@ -155,7 +172,7 @@ class TokenManager {
       }
 
       // AsyncStorage로 대체 (암호화하여 저장)
-      const encryptedToken = this.encryptToken(token);
+      const encryptedToken = await this.encryptToken(token);
       await AsyncStorage.setItem('refreshToken', encryptedToken);
       console.log('리프레시 토큰 저장 성공 (암호화된 AsyncStorage)');
     } catch (error) {
@@ -181,7 +198,7 @@ class TokenManager {
       const encryptedToken = await AsyncStorage.getItem('refreshToken');
       if (!encryptedToken) return null;
       
-      const decryptedToken = this.decryptToken(encryptedToken);
+      const decryptedToken = await this.decryptToken(encryptedToken);
       return decryptedToken;
     } catch (error) {
       console.error('리프레시 토큰 가져오기 실패:', error);
