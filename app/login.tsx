@@ -124,7 +124,7 @@ export default function Login() {
       }
 
       // 메인 페이지로 이동
-      router.replace('/(tabs)');
+      router.replace('/');
     } catch (error: any) {
       console.log('로그인 실패:', error);
       // 에러 메시지는 axiosInstance에서 자동으로 처리됨
