@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,6 +14,19 @@ export default function HomeScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { userInfo } = useSelector((state: RootState) => state.auth);
+
+  // 인증 상태 체크
+  useEffect(() => {
+    if (!userInfo) {
+      console.log('인증되지 않은 사용자, 로그인 화면으로 이동');
+      router.replace('/login');
+    }
+  }, [userInfo, router]);
+
+  // 인증되지 않은 사용자는 로딩 표시
+  if (!userInfo) {
+    return null; // 또는 로딩 스피너 표시
+  }
 
   const handleLogout = () => {
     Alert.alert(
